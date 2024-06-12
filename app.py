@@ -1,16 +1,17 @@
 from flask import Flask, request, render_template, redirect, url_for
-from flask_mysqldb import MySQL
+import mysql.connector
 import qrcode
 import os
 
 app = Flask(__name__)
 
 # Configure MySQL connection
-app.config['MYSQL_HOST'] = 'localhost'
-app.config['MYSQL_USER'] = 'root'
-app.config['MYSQL_PASSWORD'] = '123456'  # Update with your MySQL password
-app.config['MYSQL_DB'] = 'client_management'
-mysql = MySQL(app)
+db_config = {
+    'host': os.getenv('MYSQL_HOST', 'localhost'),
+    'user': os.getenv('MYSQL_USER', 'root'),
+    'password': os.getenv('MYSQL_PASSWORD', '123456'),  # Update with your MySQL password
+    'database': os.getenv('MYSQL_DB', 'client_management')
+}
 
 # Create directories for storing photos and QR codes if they don't exist
 if not os.path.exists('static/photos'):
@@ -49,13 +50,15 @@ def add_client():
         qr_code_path = generate_qr_code(email)
 
         # Save client details to database
-        cur = mysql.connection.cursor()
-        cur.execute("""
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor()
+        cursor.execute("""
             INSERT INTO clients (name, age, email, phone, address, meeting_city, venue, date, payment, topic, checkin, checkout, food, photo_path, qr_code_path)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (name, age, email, phone, address, meeting_city, venue, date, payment, topic, checkin, checkout, food, photo_path, qr_code_path))
-        mysql.connection.commit()
-        cur.close()
+        conn.commit()
+        cursor.close()
+        conn.close()
 
         return redirect(url_for('client_details', email=email))
     
@@ -63,10 +66,12 @@ def add_client():
 
 @app.route('/client_details/<email>', methods=['GET'])
 def client_details(email):
-    cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM clients WHERE email = %s", (email,))
-    client = cur.fetchone()
-    cur.close()
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM clients WHERE email = %s", (email,))
+    client = cursor.fetchone()
+    cursor.close()
+    conn.close()
 
     if client:
         client_data = {
